@@ -1,4 +1,6 @@
-# The First Commit
+# Mergability Part 1 - Merging on the Client Side
+
+## The First Commit
 
 We start by initializing a repo, staging a file, and inspecting Git’s internal object storage.
 
