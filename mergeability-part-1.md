@@ -1,6 +1,8 @@
-# Mergability Part 1 - Merging on the Client Side
+# Mergeability Part 1 — Merging on the Client Side
 
-## The First Commit
+---
+
+## 1) The First Commit
 
 We start by initializing a repo, staging a file, and inspecting Git’s internal object storage.
 
@@ -12,9 +14,9 @@ git init
 echo "# Mergeability Demo" > README.md
 ```
 
---- 
+---
 
-### Object IDs
+### 1.1) Object IDs
 
 Git stores objects under `.git/objects/` by splitting the SHA-1:  
 - first 2 chars → directory  
@@ -32,26 +34,22 @@ git cat-file -p <object-id>   # show contents
 
 ---
 
-### Explore All Objects  
+### 1.2) Explore All Objects  
 
-The `find` command:  
-- walks `.git/objects` (ignoring pack/info)  
-- reconstructs object IDs from dir+file  
-- prints type + contents for each  
+Instead of walking `.git/objects` directly, use `git rev-list` to enumerate all reachable objects. For each object, show its type and pretty-printed contents.  
 
 ```sh
-find .git/objects -type f ! -path "*/pack/*" ! -path "*/info/*" \
-  -exec sh -c '
-    id="$(basename "$(dirname "$1")")$(basename "$1")"
-    printf "== %s (%s) ==\n" "$id" "$(git cat-file -t "$id")"
-    git cat-file -p "$id"
-    printf "\n"
-  ' sh {} \;
+git rev-list --objects --all | cut -d' ' -f1 | \
+while read id; do
+  printf "== %s (%s) ==\n" "$id" "$(git cat-file -t "$id")"
+  git cat-file -p "$id" 2>/dev/null || true
+  printf "\n"
+done
 ```
 
 ---
 
-### After Commit  
+### 1.3) After Commit  
 
 When you run `git commit`:  
 - Git already has a **blob** (the file contents).  
@@ -67,18 +65,17 @@ commit → tree → blob
 ```sh
 git commit -m "Adding Readme"
 ls -R .git/objects/
-find .git/objects -type f ! -path "*/pack/*" ! -path "*/info/*" \
-  -exec sh -c '
-    id="$(basename "$(dirname "$1")")$(basename "$1")"
-    printf "== %s (%s) ==\n" "$id" "$(git cat-file -t "$id")"
-    git cat-file -p "$id"
-    printf "\n"
-  ' sh {} \;
+git rev-list --objects --all | cut -d' ' -f1 | \
+while read id; do
+  printf "== %s (%s) ==\n" "$id" "$(git cat-file -t "$id")"
+  git cat-file -p "$id" 2>/dev/null || true
+  printf "\n"
+done
 ```
 
 ---
 
-## Merging a Change
+## 2) Merging a Change
 
 Here we create divergent history by committing on a feature branch and on main, then merging.
 
@@ -90,7 +87,7 @@ git add README.md
 git commit -m "Update README on feature branch"
 ```
 
-### Divergence on Main
+### 2.1) Divergence on Main
 
 ```sh
 git checkout main
@@ -105,7 +102,7 @@ At this point both branches have unique commits:
 git log --oneline --decorate --graph --all --boundary
 ```
 
-### Merge with Commit
+### 2.2) Merge with Commit
 
 ```sh
 git merge feature-branch -m "Merge branch 'feature-branch' into main"
@@ -113,24 +110,24 @@ git log --oneline --decorate --graph --all --boundary
 git cat-file -p HEAD
 ```
 
-### Inspect and Clean Up
+### 2.3) Inspect and Clean Up  
+
+Again, enumerate all objects via `git rev-list` and show their type and contents.  
 
 ```sh
-find .git/objects -type f ! -path "*/pack/*" ! -path "*/info/*" \
-  -exec sh -c '
-    f="$1"
-    id="$(basename "$(dirname "$f")")$(basename "$f")"
-    printf "== %s (%s) ==\n" "$id" "$(git cat-file -t "$id")"
-    git cat-file -p "$id"
-    printf "\n"
-  ' sh {} \;
+git rev-list --objects --all | cut -d' ' -f1 | \
+while read id; do
+  printf "== %s (%s) ==\n" "$id" "$(git cat-file -t "$id")"
+  git cat-file -p "$id" 2>/dev/null || true
+  printf "\n"
+done
 
 git branch -d feature-branch
 ```
 
 ---
 
-## Merge Conflict
+## 3) Merge Conflict
 
 Now let’s force an actual conflict and resolve it on the CLI.
 
@@ -142,7 +139,7 @@ git add README.md
 git commit -m "Edit README on conflict-branch"
 ```
 
-### Conflicting Change on Main
+### 3.1) Conflicting Change on Main
 
 ```sh
 git checkout main
@@ -151,7 +148,7 @@ git add README.md
 git commit -m "Edit README on main branch"
 ```
 
-### Attempt Merge
+### 3.2) Attempt Merge
 
 ```sh
 git merge conflict-branch
@@ -159,7 +156,7 @@ git status
 cat README.md   # shows conflict markers
 ```
 
-### Resolve Conflict and Commit
+### 3.3) Resolve Conflict and Commit
 
 ```sh
 git checkout --ours README.md
@@ -167,7 +164,7 @@ git add README.md
 git commit -m "Resolve merge conflict between main and conflict-branch"
 ```
 
-### Confirm History
+### 3.4) Confirm History
 
 ```sh
 git log --oneline --decorate --graph --all --boundary
@@ -175,7 +172,7 @@ git log --oneline --decorate --graph --all --boundary
 
 ---
 
-## What Did We Learn?
+## 4) What Did We Learn?
 
 - **Git objects**:  
   - **Blob**: file contents  
