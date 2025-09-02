@@ -85,7 +85,7 @@ while read id; do
 done
 ```
 
-### Pull Requestsd
+### Pull Requests
 
 ---
 
