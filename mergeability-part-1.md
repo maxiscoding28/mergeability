@@ -2,49 +2,90 @@
 
 ---
 
-## 1) The First Commit
+## Introduction
 
-We start by initializing a repo, staging a file, and inspecting Git’s internal object storage.
+This is Max Winslow.  
+
+I’ve been working as a Customer Reliability Engineer since August 2024 for some of our Premium Plus support customers
+
+- Many of the customers I support run GitHub Enterprise Server (GHES) and share two common traits:  
+  1. They typically work with very large repositories that have lots of open pull requests.  
+  2. They experience a rapid and high volume of changes landing on their `main` branch throughout the day.
+
+- That combination of factors creates significant challenges around mergeability checks.  
+
+- There’s a whole constellation of terms tied to mergeability checks. You’ll often hear about “test merges,” and you may recognize the acronym **CPRMC** (Create Pull Request Merge Commit job). While that job is being phased out, it’s still a term you’ll see used heavily in Slack or Issues or old tickets.  
+
+- My goal with this talk is to provide newer CREs and support engineers an introduction to the mergeability checking system of GitHub Enterprise Server.
+
+- I’ll cover the core functionality, highlight some of the most common problems in this system, and share ways to think about mitigating those issues.  
+
+
+## Git is Just Objects: The First Commit
+
+To start, let's work in local Git to refresh our memories on the internals of Git and the mechanics of a merge.  
+We’ll initialize a repo, create a file, stage it, commit it, and then inspect Git’s internal object storage.
 
 ```sh
 # Initialize repo and create README
-mkdir mergeability-demo
-cd mergeability-demo
-git init
+mkdir mergeability-demo && cd mergeability-demo && git init
+
+# Look into the .git directory (objects is currently empty)
+ls -lahR .git/objects
+
+# Create our first file
 echo "# Mergeability Demo" > README.md
+
+# Stage it so Git starts tracking it
+git add README.md
+
+# Now if we peek into the objects directory, a new directory exists
+ls -lah .git/objects
+
+# That directory contains a compressed version of the README file
+ls -lah .git/objects/70
 ```
 
----
-
-### 1.1) Object IDs
-
-Git stores objects under `.git/objects/` by splitting the SHA-1:  
-- first 2 chars → directory  
-- remaining 38 chars → file  
-
-Example:  
-`f8e123...` → `.git/objects/f8/e123...`  
-
-Recombine dir + file = full 40-char object ID.  
+At this point Git has created its first **blob object**, representing the file contents.  
+We can verify this using `git cat-file`:
 
 ```sh
-git cat-file -t <object-id>   # show type
+# Construct the full SHA by combining directory and filename
+git cat-file -t <object-id>   # show type (blob)
 git cat-file -p <object-id>   # show contents
 ```
 
+Git stores objects under `.git/objects/` by splitting the SHA-1:
+- First 2 characters → directory  
+- Remaining 38 characters → file  
+
+Example:  
+`f8e123...` → `.git/objects/f8/e123...`  
+Recombine dir + file = full 40-char object ID.
+
 ---
 
-### 1.2) Explore All Objects  
-
-Instead of walking `.git/objects` directly, use `git rev-list` to enumerate all reachable objects. For each object, show its type and pretty-printed contents.  
+### Committing
 
 ```sh
-git rev-list --objects --all | cut -d' ' -f1 | \
-while read id; do
-  printf "== %s (%s) ==\n" "$id" "$(git cat-file -t "$id")"
-  git cat-file -p "$id" 2>/dev/null || true
-  printf "\n"
-done
+# Commit the change
+git commit -m "Initial commit"
+
+# After committing, we see several new objects:
+# - the blob (file contents) we already saw
+# - a tree object (snapshot of directory structure pointing to the blob)
+# - a commit object (pointing to the tree, and possibly to a parent)
+```
+
+When you run `git commit`:
+- Git already has the **blob** (file).  
+- It creates a **tree** mapping filenames to blob IDs.  
+- It creates a **commit** referencing that tree.  
+
+The chain looks like:
+
+```
+commit → tree → blob
 ```
 
 ---
